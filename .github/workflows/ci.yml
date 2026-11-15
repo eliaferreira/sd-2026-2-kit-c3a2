@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Baixar codigo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Validar Docker Compose
         run: docker compose config --quiet
