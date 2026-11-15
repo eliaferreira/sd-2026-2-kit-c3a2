@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 import config
-from armazenamento_vetorial import ArmazenamentoVetorial
+from armazenamento_vetorial import ArmazenamentoVetorial, ErroArmazenamentoVetorial
 from modelo import carregar_modelo
 from vetorizador import vetorizar
 
@@ -41,6 +41,14 @@ class EntradaBusca(Entrada):
     k: int = Field(default=config.BUSCA_K_PADRAO, ge=1, le=config.BUSCA_K_MAX)
 
 
+@app.exception_handler(ErroArmazenamentoVetorial)
+async def tratar_erro_vetorial(request: Request, exc: ErroArmazenamentoVetorial):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "banco vetorial indisponivel"},
+    )
+
+
 @app.exception_handler(Exception)
 async def tratar_erro_inesperado(request: Request, exc: Exception):
     return JSONResponse(
@@ -54,6 +62,11 @@ async def registrar(request: Request, call_next):
     inicio = time.time()
     try:
         resposta = await call_next(request)
+    except ErroArmazenamentoVetorial:
+        resposta = JSONResponse(
+            status_code=503,
+            content={"detail": "banco vetorial indisponivel"},
+        )
     except Exception:
         resposta = JSONResponse(
             status_code=500,
@@ -69,12 +82,13 @@ async def registrar(request: Request, call_next):
 
 @app.get("/saude")
 def saude():
-    return {"status": "ok"}
+    estado_vetorial = "ok" if obter_armazenamento().saudavel() else "indisponivel"
+    return {"status": "ok", "vetorial": estado_vetorial}
 
 
 @app.post("/predict")
 def predict(entrada: Entrada):
-    """Inferencia sincrona: recebe texto e devolve sentimento e confianca."""
+    """Inferencia sincrona: recebe texto e devolve sentimento e confianca (independente do Qdrant)."""
     inicio = time.time()
     resultado = modelo.prever(entrada.texto)
     resultado["tempo_ms"] = round((time.time() - inicio) * 1000, 2)
