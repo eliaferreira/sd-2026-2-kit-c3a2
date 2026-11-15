@@ -60,6 +60,7 @@ async def tratar_erro_inesperado(request: Request, exc: Exception):
 @app.middleware("http")
 async def registrar(request: Request, call_next):
     inicio = time.time()
+    traceparent = request.headers.get("traceparent")
     try:
         resposta = await call_next(request)
     except ErroArmazenamentoVetorial:
@@ -72,9 +73,11 @@ async def registrar(request: Request, call_next):
             status_code=500,
             content={"detail": "erro interno no servico de inferencia"},
         )
+    if traceparent:
+        resposta.headers["traceparent"] = traceparent
     ms = (time.time() - inicio) * 1000
     print(
-        f"[inferencia] {request.method} {request.url.path} "
+        f"[{config.SERVICO_NOME}] {request.method} {request.url.path} "
         f"-> {resposta.status_code} ({ms:.1f}ms)"
     )
     return resposta

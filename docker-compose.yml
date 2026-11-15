@@ -20,6 +20,7 @@ services:
       QDRANT_COLECAO: ${QDRANT_COLECAO:-documentos}
       TIMEOUT_VETORIAL: ${TIMEOUT_VETORIAL:-5.0}
       MODEL_PATH: ${MODEL_PATH:-modelo.joblib}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-inferencia}
     depends_on:
       redis:
         condition: service_healthy
