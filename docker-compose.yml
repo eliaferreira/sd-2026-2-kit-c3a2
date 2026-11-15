@@ -41,5 +41,12 @@ services:
       inferencia:
         condition: service_started
 
+  qdrant:
+    image: qdrant/qdrant:v1.12.1
+    restart: unless-stopped
+    volumes:
+      - qdrant_dados:/qdrant/storage
+
 volumes:
   redis_data:
+  qdrant_dados:
