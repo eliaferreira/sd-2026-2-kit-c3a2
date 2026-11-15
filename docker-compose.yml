@@ -16,9 +16,15 @@ services:
     restart: unless-stopped
     environment:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_COLECAO: ${QDRANT_COLECAO:-documentos}
+      TIMEOUT_VETORIAL: ${TIMEOUT_VETORIAL:-5.0}
+      MODEL_PATH: ${MODEL_PATH:-modelo.joblib}
     depends_on:
       redis:
         condition: service_healthy
+      qdrant:
+        condition: service_started
 
   worker:
     build: ./worker
