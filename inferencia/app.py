@@ -1,5 +1,5 @@
 """
-Servico de inferencia - importado do C1.A2 e adaptado para C3.A2.
+Servico de inferencia - C3.A2.
 
 Rodar: uvicorn app:app --port 8001
 """
@@ -8,9 +8,10 @@ import time
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+import config
 from modelo import carregar_modelo
 
-app = FastAPI(title="Servico de Inferencia - C3.A2", version="0.1.0")
+app = FastAPI(title=config.SERVICO_NOME, version=config.SERVICO_VERSAO)
 
 modelo = carregar_modelo()
 

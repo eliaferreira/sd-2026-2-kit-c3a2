@@ -7,8 +7,7 @@ O modelo deve ser gerado previamente executando:
 import os
 import joblib
 
-DIRETORIO_BASE = os.path.dirname(os.path.abspath(__file__))
-CAMINHO_PADRAO = os.path.join(DIRETORIO_BASE, "modelo.joblib")
+import config
 
 
 class ModeloSentimento:
@@ -30,7 +29,7 @@ class ModeloSentimento:
 
 def carregar_modelo(caminho: str | None = None) -> ModeloSentimento:
     """Carrega o modelo do disco. Falha com instrucao clara se nao existir."""
-    caminho_efetivo = caminho or os.getenv("MODEL_PATH", CAMINHO_PADRAO)
+    caminho_efetivo = caminho or config.obter_model_path()
     if not os.path.exists(caminho_efetivo):
         raise FileNotFoundError(
             f"Arquivo de modelo nao encontrado em '{caminho_efetivo}'. "

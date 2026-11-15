@@ -1,7 +1,7 @@
 """
 Script de treinamento reproduzivel do modelo de sentimento.
 
-Le o dataset versionado em dados_treino.csv, treina o pipeline scikit-learn
+Le o dataset versionado em DADOS_TREINO_PATH, treina o pipeline scikit-learn
 com semente fixa e salva o artefato no caminho configurado em MODEL_PATH.
 
 Rodar: python treinar.py
@@ -13,15 +13,14 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 
-DIRETORIO_BASE = os.path.dirname(os.path.abspath(__file__))
-CAMINHO_DADOS = os.path.join(DIRETORIO_BASE, "dados_treino.csv")
-CAMINHO_PADRAO_MODELO = os.path.join(DIRETORIO_BASE, "modelo.joblib")
+import config
 
 
-def carregar_dados_treino(caminho_csv: str = CAMINHO_DADOS) -> tuple[list[str], list[int]]:
+def carregar_dados_treino(caminho_csv: str | None = None) -> tuple[list[str], list[int]]:
+    caminho_efetivo = caminho_csv or config.obter_dados_treino_path()
     textos: list[str] = []
     rotulos: list[int] = []
-    with open(caminho_csv, mode="r", encoding="utf-8") as f:
+    with open(caminho_efetivo, mode="r", encoding="utf-8") as f:
         leitor = csv.DictReader(f)
         for linha in leitor:
             textos.append(linha["texto"])
@@ -30,12 +29,15 @@ def carregar_dados_treino(caminho_csv: str = CAMINHO_DADOS) -> tuple[list[str], 
 
 
 def treinar_e_salvar(caminho_modelo: str | None = None) -> str:
-    destino = caminho_modelo or os.getenv("MODEL_PATH", CAMINHO_PADRAO_MODELO)
+    destino = caminho_modelo or config.obter_model_path()
     textos, rotulos = carregar_dados_treino()
 
     pipe = make_pipeline(
         TfidfVectorizer(ngram_range=(1, 2), min_df=1),
-        LogisticRegression(max_iter=1000, random_state=42),
+        LogisticRegression(
+            max_iter=config.TREINO_MAX_ITER,
+            random_state=config.TREINO_RANDOM_STATE,
+        ),
     )
     pipe.fit(textos, rotulos)
 
