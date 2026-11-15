@@ -1,0 +1,22 @@
+name: CI - Plataforma de IA
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+
+    env:
+      JWT_SEGREDO: ci-placeholder-not-secret
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v7
+
+      - name: Validar Docker Compose
+        run: docker compose config --quiet
+
+      - name: Construir imagem do Gateway
+        run: docker compose build gateway
