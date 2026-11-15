@@ -1,33 +1,45 @@
 services:
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
+      timeout: 3s
       retries: 5
+      start_period: 5s
 
   inferencia:
     build: ./inferencia
+    restart: unless-stopped
     environment:
-      - REDIS_URL=redis://redis:6379/0
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     depends_on:
-      redis: {condition: service_healthy}
+      redis:
+        condition: service_healthy
 
   worker:
     build: ./worker
+    restart: unless-stopped
     environment:
-      - REDIS_URL=redis://redis:6379/0
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     depends_on:
-      redis: {condition: service_healthy}
+      redis:
+        condition: service_healthy
 
   gateway:
     build: ./gateway
-    ports: ["8000:8000"]
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
     environment:
-      - URL_INFERENCIA=http://inferencia:8001
-      - JWT_SEGREDO=${JWT_SEGREDO:-troque-este-segredo}
-    depends_on: [inferencia]
+      URL_INFERENCIA: ${URL_INFERENCIA:-http://inferencia:8001}
+      JWT_SEGREDO: ${JWT_SEGREDO:?JWT_SEGREDO precisa ser configurado}
+    depends_on:
+      inferencia:
+        condition: service_started
 
-# Observe: os servicos se referenciam pelo NOME (inferencia, redis),
-# nunca por IP fixo. Isso e descoberta de servicos. (Aula 14)
+volumes:
+  redis_data:
