@@ -1,0 +1,11 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+tests/
+requirements-dev.txt
+.env
+*.joblib
+*.pkl
+.DS_Store
