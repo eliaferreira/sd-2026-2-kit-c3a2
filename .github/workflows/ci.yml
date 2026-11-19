@@ -18,5 +18,55 @@ jobs:
       - name: Validar Docker Compose
         run: docker compose config --quiet
 
-      - name: Construir imagem do Gateway
-        run: docker compose build gateway
+      - name: Construir imagem de cada servico
+        run: |
+          for servico in $(docker compose config --services); do
+            pasta=$(docker compose config --format json | jq -r ".services[\"$servico\"].build.context // empty")
+            if [ -z "$pasta" ]; then
+              echo "$servico usa imagem pronta, nada para construir"
+            elif [ -f "$pasta/Dockerfile" ]; then
+              echo "::group::docker build $servico"
+              docker build -t "plataforma-$servico:ci" "$pasta"
+              echo "::endgroup::"
+            else
+              echo "::warning title=Dockerfile ausente::O servico '$servico' esta no docker-compose mas nao tem Dockerfile em $pasta - 'docker compose up' vai falhar"
+            fi
+          done
+
+  testes:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        servico: [gateway, inferencia, worker]
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v7
+
+      - name: Verificar se o servico tem testes
+        id: tem
+        run: |
+          if [ -d "${{ matrix.servico }}/tests" ]; then
+            echo "testes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::${{ matrix.servico }} ainda nao tem pasta tests/ - pulando"
+          fi
+
+      - name: Instalar Python
+        if: steps.tem.outputs.testes == 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        if: steps.tem.outputs.testes == 'true'
+        working-directory: ${{ matrix.servico }}
+        run: |
+          pip install -r requirements.txt
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+
+      - name: Rodar pytest
+        if: steps.tem.outputs.testes == 'true'
+        working-directory: ${{ matrix.servico }}
+        run: python -m pytest -v -rxX
