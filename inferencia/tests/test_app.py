@@ -54,8 +54,15 @@ def test_log_nao_expoe_conteudo_do_texto(client, capsys):
     resposta = client.post("/predict", json={"texto": f"atendimento excelente {segredo}"})
     assert resposta.status_code == 200
     saida = capsys.readouterr().out
-    assert "[inferencia] POST /predict -> 200" in saida
+    assert "POST /predict -> 200" in saida
     assert segredo not in saida
+
+
+def test_propaga_cabecalho_traceparent(client):
+    trace = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+    resposta = client.get("/saude", headers={"traceparent": trace})
+    assert resposta.status_code == 200
+    assert resposta.headers.get("traceparent") == trace
 
 
 def test_erro_inesperado_retorna_json_padronizado_sem_stacktrace(client, monkeypatch):
