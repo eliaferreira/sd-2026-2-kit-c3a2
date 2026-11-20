@@ -53,6 +53,20 @@ curl -X POST http://localhost:8000/predict \
 # 7. Publique na nuvem seguindo deploy/INSTRUCOES.md
 ```
 
+## Deploy em nuvem
+
+O Gateway da Plataforma de IA está hospedado no Render.
+
+- **URL pública:** https://sd-2026-2-kit-c3a2.onrender.com
+- **Health Check:** https://sd-2026-2-kit-c3a2.onrender.com/saude
+- **Plataforma:** Render
+- **Containerização:** Docker
+- **HTTPS:** Habilitado
+- **Deploy automático:** Ativado na branch `main`
+
+**Status:** Gateway publicado e endpoint de saúde validado.
+
+
 ---
 
 ## Estrutura do projeto
