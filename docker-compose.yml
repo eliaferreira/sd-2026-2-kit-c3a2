@@ -1,3 +1,4 @@
+
 services:
   redis:
     image: redis:7-alpine
@@ -32,9 +33,12 @@ services:
     restart: unless-stopped
     environment:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      URL_INFERENCIA: ${URL_INFERENCIA:-http://inferencia:8001}
     depends_on:
       redis:
         condition: service_healthy
+      inferencia:
+        condition: service_started
 
   gateway:
     build: ./gateway
