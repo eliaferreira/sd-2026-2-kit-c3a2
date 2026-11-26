@@ -81,8 +81,9 @@ def test_predict_sem_token_retorna_401():
 def test_processamento_assincrono(auth):
     if not auth:
         pytest.fail("Defina E2E_TOKEN ou JWT_SEGREDO para testar o fluxo autenticado")
+    headers = {**auth, "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}
     resposta = requests.post(f"{E2E_URL}/tarefas", json={"texto": "atendimento excelente"},
-                             headers=auth, timeout=TIMEOUT)
+                             headers=headers, timeout=TIMEOUT)
     assert resposta.status_code == 202, resposta.text
     tarefa_id = resposta.json()["id"]
     limite = time.monotonic() + 60

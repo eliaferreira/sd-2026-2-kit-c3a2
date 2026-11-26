@@ -98,6 +98,7 @@ jobs:
         run: |
           pip install -r tests/e2e/requirements.txt
           python -m pytest tests/e2e -v -rs
+          python tests/e2e/verificar_integracao.py
       - name: Mostrar logs em caso de falha
         if: failure()
         run: docker compose logs --no-color --tail 150
