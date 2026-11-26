@@ -66,6 +66,17 @@ O Gateway da Plataforma de IA está hospedado no Render.
 
 **Status:** Gateway publicado e endpoint de saúde validado.
 
+## Resiliência e testes de falha — Vinicius
+
+O gateway aplica timeout, retry com backoff exponencial e circuit breaker nas
+chamadas de classificação. Quando a inferência fica indisponível, responde `503`
+com uma mensagem tratada. O worker mantém seu próprio ciclo limitado de
+retentativas e encaminha falhas para a fila de descarte.
+
+As configurações, os limites e os comandos dos testes estão em
+[docs/RESILIENCIA.md](docs/RESILIENCIA.md). Os testes do gateway e do worker
+executam na CI existente, incluindo os cenários de falha.
+
 
 ---
 
