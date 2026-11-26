@@ -6,7 +6,7 @@ from worker import main
 
 def test_worker_restaura_trace_da_mensagem(monkeypatch, capsys):
     enviado = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-    resposta = Mock()
+    resposta = Mock(status_code=200)
     resposta.json.return_value = {"sentimento": "positivo"}
     post = Mock(return_value=resposta)
     monkeypatch.setattr(main.requests, "post", post)

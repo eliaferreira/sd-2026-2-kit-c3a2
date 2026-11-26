@@ -34,6 +34,9 @@ services:
     environment:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       URL_INFERENCIA: ${URL_INFERENCIA:-http://inferencia:8001}
+      WORKER_TIMEOUT_S: ${WORKER_TIMEOUT_S:-3}
+      WORKER_MAX_TENTATIVAS: ${WORKER_MAX_TENTATIVAS:-3}
+      WORKER_BACKOFF_S: ${WORKER_BACKOFF_S:-0.5}
     depends_on:
       redis:
         condition: service_healthy
@@ -54,6 +57,11 @@ services:
       LOGIN_SENHA: ${LOGIN_SENHA:?LOGIN_SENHA precisa ser configurada}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-60}
       RATE_LIMIT_JANELA_S: ${RATE_LIMIT_JANELA_S:-60}
+      INFERENCIA_TIMEOUT_S: ${INFERENCIA_TIMEOUT_S:-3}
+      INFERENCIA_MAX_TENTATIVAS: ${INFERENCIA_MAX_TENTATIVAS:-3}
+      INFERENCIA_BACKOFF_S: ${INFERENCIA_BACKOFF_S:-0.2}
+      CIRCUITO_INFERENCIA_FALHAS: ${CIRCUITO_INFERENCIA_FALHAS:-3}
+      CIRCUITO_INFERENCIA_ESPERA_S: ${CIRCUITO_INFERENCIA_ESPERA_S:-20}
     depends_on:
       inferencia:
         condition: service_started

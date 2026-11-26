@@ -23,10 +23,16 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 import rastreamento
 
+from resiliencia import (
+    CircuitoAberto, ClienteInferencia, Configuracao, FalhaDependencia,
+    RequisicaoRecusada,
+)
+
 app = FastAPI(title="Gateway - C3.A2")
 
 URL_INFERENCIA = os.getenv("URL_INFERENCIA", "http://localhost:8001")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+cliente_inferencia = ClienteInferencia(Configuracao.do_ambiente())
 
 # --- Configuracao (tudo por variavel de ambiente; ver .env.example) ---------
 # Nome da variavel segue o conftest dos testes (JWT_SEGREDO).
@@ -164,14 +170,17 @@ def login(cred: Credenciais):
 def predict(entrada: Entrada, usuario: str = Depends(limitar_por_usuario)):
     try:
         with rastreamento.span("gateway", "inferencia.predict"):
-            r = requests.post(f"{URL_INFERENCIA}/predict",
-                              json=entrada.model_dump(), timeout=10,
-                              headers={"traceparent": rastreamento.cabecalho()})
-            r.raise_for_status()
-        return r.json()
-    except requests.RequestException:
+            return cliente_inferencia.prever(URL_INFERENCIA, entrada.model_dump())
+    except RequisicaoRecusada as erro:
+        raise HTTPException(status_code=erro.status_code,
+                            detail="requisicao recusada pela inferencia") from None
+    except CircuitoAberto as erro:
         raise HTTPException(status_code=503,
-                            detail="servico de inferencia indisponivel")
+                            detail="servico de inferencia indisponivel",
+                            headers={"Retry-After": str(erro.espera_s)}) from None
+    except FalhaDependencia:
+        raise HTTPException(status_code=503,
+                            detail="servico de inferencia indisponivel") from None
 
 
 @app.post("/tarefas", status_code=202)

@@ -91,3 +91,7 @@ O gateway recebe textos para classificação. Tarefas assíncronas e seus result
 ## Distribuição do trabalho
 
 Consulte [TAREFAS.md](TAREFAS.md) e os relatórios em `docs/`. A configuração das dependências e as credenciais são lidas do ambiente; não inclua `.env` ou segredos nos commits.
+
+## Resiliência
+
+O gateway usa timeout, retry e circuit breaker na chamada de inferência; o worker possui retentativas limitadas. Veja [docs/RESILIENCIA.md](docs/RESILIENCIA.md) para limites, configuração e testes de falha.
