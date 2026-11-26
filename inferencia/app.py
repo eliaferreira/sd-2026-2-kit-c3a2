@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 import config
+import rastreamento
 from armazenamento_vetorial import ArmazenamentoVetorial, ErroArmazenamentoVetorial
 from modelo import carregar_modelo
 from vetorizador import vetorizar
@@ -61,18 +62,16 @@ async def tratar_erro_inesperado(request: Request, exc: Exception):
 async def registrar(request: Request, call_next):
     inicio = time.time()
     traceparent = request.headers.get("traceparent")
-    try:
-        resposta = await call_next(request)
-    except ErroArmazenamentoVetorial:
-        resposta = JSONResponse(
-            status_code=503,
-            content={"detail": "banco vetorial indisponivel"},
-        )
-    except Exception:
-        resposta = JSONResponse(
-            status_code=500,
-            content={"detail": "erro interno no servico de inferencia"},
-        )
+    with rastreamento.span("inferencia", f"HTTP {request.method}",
+                           pai=traceparent or "") as estado:
+        try:
+            resposta = await call_next(request)
+        except ErroArmazenamentoVetorial:
+            resposta = JSONResponse(status_code=503, content={"detail": "banco vetorial indisponivel"})
+        except Exception:
+            resposta = JSONResponse(status_code=500, content={"detail": "erro interno no servico de inferencia"})
+        if resposta.status_code >= 500:
+            estado["resultado"] = "erro"
     if traceparent:
         resposta.headers["traceparent"] = traceparent
     ms = (time.time() - inicio) * 1000

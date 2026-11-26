@@ -9,6 +9,7 @@ RUN pip install --default-timeout=300 --retries=10 --no-cache-dir -r requirement
 
 COPY fila.py .
 COPY main.py .
+COPY rastreamento.py .
 
 ENV PYTHONUNBUFFERED=1
 
