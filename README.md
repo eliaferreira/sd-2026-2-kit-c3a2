@@ -56,6 +56,10 @@ Para encerrar, execute `docker compose down`. Os volumes de Redis e Qdrant são 
 
 ## Observabilidade
 
+Consulte o [guia de operação e revisão dos traces](docs/OBSERVABILIDADE.md)
+para interpretar a cadeia de spans, diagnosticar interrupções e repetir a
+verificação de integração.
+
 Cada operação emite um span JSON nos logs com `trace_id`, `span_id`, `parent_span_id`, serviço, operação, resultado e duração. O gateway aceita um `traceparent` W3C versão `00` válido ou cria um novo trace; ele encaminha o contexto à inferência ou o inclui na mensagem da fila. O worker recupera esse contexto e o repassa à inferência. Assim, os spans podem ser correlacionados pelo mesmo `trace_id`:
 
 ```powershell
