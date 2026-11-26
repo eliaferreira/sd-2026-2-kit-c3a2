@@ -89,9 +89,29 @@ $env:E2E_TOKEN = $token
 
 O teste local de HTTPS é pulado; em uma URL pública, HTTPS é exigido. A execução cria uma tarefa de teste no Redis. Não rode contra produção sem considerar os dados e limites da implantação.
 
-## Implantação
+## Implantação (Render, plano gratuito)
 
-O README anterior informa uma implantação do gateway em <https://sd-2026-2-kit-c3a2.onrender.com>. A disponibilidade e o funcionamento completo de inferência, Redis e worker no deploy precisam ser verificados separadamente; `GET /saude` não comprova o fluxo inteiro. Siga [deploy/INSTRUCOES.md](deploy/INSTRUCOES.md) e configure os segredos no provedor.
+| Componente | URL pública | Situação |
+|---|---|---|
+| Gateway | https://sd-2026-2-kit-c3a2.onrender.com | No ar (HTTPS fornecido pelo Render) |
+| Inferência | https://inferencia-c3a2.onrender.com | No ar |
+| Redis (Key Value) | rede interna do Render | No ar, sem persistência |
+
+A raiz `/` não possui rota e retorna `404`; use os endpoints abaixo.
+`GET /saude` verifica apenas o gateway. Para testar o fluxo completo:
+`POST /login` → `POST /predict` (síncrono) → `POST /tarefas` (assíncrono).
+Os serviços gratuitos "dormem" após inatividade: a primeira chamada pode
+levar cerca de 1 minuto.
+
+As credenciais da URL pública foram enviadas ao avaliador. Para rodar
+localmente, defina `LOGIN_USUARIO` e `LOGIN_SENHA` no `.env`.
+
+**Limitação conhecida:** o plano gratuito do Render não oferece worker em
+segundo plano. Na URL pública, `POST /tarefas` enfileira a tarefa no Redis,
+mas ela permanece `na_fila`. O fluxo assíncrono completo (fila + worker)
+funciona com `docker compose up --build` e é validado na CI.
+
+Implantação feita seguindo as instruções do [deploy/INSTRUCOES.md](deploy/INSTRUCOES.md)
 
 ## Dados e LGPD
 
