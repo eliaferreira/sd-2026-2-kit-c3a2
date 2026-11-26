@@ -22,6 +22,16 @@ os.environ.setdefault("URL_INFERENCIA", "http://inferencia-falsa:8001")
 
 import app as app_modulo  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from resiliencia import ClienteInferencia, Configuracao  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def isolar_estado(monkeypatch):
+    """Cada teste tem seu circuito e sua janela de rate limit."""
+    with app_modulo._trava:
+        app_modulo._acessos.clear()
+    monkeypatch.setattr(app_modulo, "cliente_inferencia",
+                        ClienteInferencia(Configuracao(backoff_s=0)))
 
 
 @pytest.fixture
@@ -56,6 +66,9 @@ class RespostaFalsa:
 
     def json(self):
         return self._corpo
+
+    def close(self):
+        pass
 
     def raise_for_status(self):
         import requests

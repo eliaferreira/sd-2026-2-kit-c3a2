@@ -7,6 +7,7 @@ e registra o resultado de cada processamento.
 """
 
 import logging
+import math
 import os
 import time
 
@@ -24,8 +25,12 @@ URL_INFERENCIA = os.getenv(
     "http://localhost:8001"
 )
 
-MAX_TENTATIVAS = 3
-ESPERA_BASE_S = 0.5
+MAX_TENTATIVAS = int(os.getenv("WORKER_MAX_TENTATIVAS", "3"))
+ESPERA_BASE_S = float(os.getenv("WORKER_BACKOFF_S", "0.5"))
+TIMEOUT_S = float(os.getenv("WORKER_TIMEOUT_S", "3"))
+if (MAX_TENTATIVAS < 1 or not math.isfinite(ESPERA_BASE_S) or ESPERA_BASE_S < 0
+        or not math.isfinite(TIMEOUT_S) or TIMEOUT_S <= 0):
+    raise ValueError("configuracao de resiliencia do worker invalida")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,20 +45,30 @@ def executar_inferencia(texto):
     resposta = requests.post(
         f"{URL_INFERENCIA}/predict",
         json={"texto": texto},
-        timeout=10
+        timeout=TIMEOUT_S,
+        allow_redirects=False,
     )
-    resposta.raise_for_status()
-    return resposta.json()
+    try:
+        resposta.raise_for_status()
+        if 300 <= resposta.status_code < 400:
+            raise requests.RequestException("redirecionamento de inferencia recusado")
+        return resposta.json()
+    finally:
+        resposta.close()
 
 
 def processar_tarefa(tarefa):
-    """Executa a tarefa com ate tres tentativas."""
+    """Um unico ciclo de retentativas, apenas para falhas transitorias."""
     ultimo_erro = None
 
     for tentativa in range(1, MAX_TENTATIVAS + 1):
         try:
             return executar_inferencia(tarefa["texto"])
         except requests.RequestException as erro:
+            status = erro.response.status_code if erro.response is not None else None
+            transitorio = isinstance(erro, (requests.ConnectionError, requests.Timeout))
+            if not transitorio and status not in {429, 500, 502, 503, 504}:
+                raise
             ultimo_erro = erro
 
             log.warning(
@@ -64,7 +79,7 @@ def processar_tarefa(tarefa):
             )
 
             if tentativa < MAX_TENTATIVAS:
-                time.sleep(ESPERA_BASE_S * tentativa)
+                time.sleep(ESPERA_BASE_S * 2 ** (tentativa - 1))
 
     raise ultimo_erro
 
@@ -82,15 +97,17 @@ def tratar_tarefa(tarefa):
         resultado = processar_tarefa(tarefa)
 
     except Exception as erro:
-        log.error("Tarefa %s falhou: %s", tarefa_id, erro)
+        # Excecoes HTTP podem incluir URL/corpo; guardar apenas a categoria.
+        mensagem = f"falha no processamento ({type(erro).__name__})"
+        log.error("Tarefa %s: %s", tarefa_id, mensagem)
 
-        fila.enviar_para_descarte(tarefa, str(erro))
+        fila.enviar_para_descarte(tarefa, mensagem)
 
         fila.guardar_status(
             tarefa_id,
             {
                 "status": "falhou",
-                "erro": str(erro)
+                "erro": mensagem
             }
         )
         return
