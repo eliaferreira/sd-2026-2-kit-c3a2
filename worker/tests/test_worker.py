@@ -10,6 +10,7 @@ class TestWorker(unittest.TestCase):
     @patch("worker.main.requests.post")
     def test_inferencia_com_sucesso(self, mock_post):
         resposta = Mock()
+        resposta.status_code = 200
         resposta.json.return_value = {
             "sentimento": "positivo",
             "confianca": 0.95
