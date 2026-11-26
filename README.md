@@ -66,6 +66,11 @@ Os spans não incluem texto, token ou credenciais. Logs existentes dos serviços
 
 ## Testes
 
+A [validação em ambiente limpo na CI](https://github.com/eliaferreira/sd-2026-2-kit-c3a2/actions/runs/45755374559)
+construiu as imagens e executou os fluxos síncrono e assíncrono com Redis real,
+as operações de inserção/busca/remoção no Qdrant e a correlação dos spans entre
+gateway, fila, worker e inferência. Os cinco jobs terminaram com sucesso.
+
 Execute as suítes de cada serviço em ambientes virtuais separados, pois as dependências possuem versões diferentes. A CI executa `python -m pytest -v -rxX` nas pastas `gateway`, `worker` e `inferencia` após instalar seus arquivos `requirements.txt` e `requirements-dev.txt`. O teste de integração do Qdrant é pulado se o serviço local não estiver disponível.
 
 Com a stack do Compose funcionando, teste de ponta a ponta usando Python 3.12:

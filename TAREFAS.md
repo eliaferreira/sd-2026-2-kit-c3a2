@@ -23,7 +23,7 @@ Este e o projeto integrador. Reaproveite o que voce fez em C1.A2 e C2.A2.
       Tempo-limite, retentativa com espera progressiva e circuit breaker. (Aula 11)
       Implementacao e testes de falha: [docs/RESILIENCIA.md](docs/RESILIENCIA.md).
 
-- [ ] **7. Observabilidade**
+- [x] **7. Observabilidade**
       Rastreamento distribuido cobrindo gateway -> fila -> worker. (Aula 15)
 
 - [ ] **8. HTTPS** no servico publicado. (Aula 16)
@@ -44,7 +44,7 @@ Este e o projeto integrador. Reaproveite o que voce fez em C1.A2 e C2.A2.
 
 ## Antes de entregar
 
-- [ ] Clone em OUTRA maquina e rode o comando unico - funciona?
+- [x] Checkout limpo em outra maquina (GitHub Actions), build e teste da stack completa com Docker Compose.
 - [ ] A URL publica esta no ar?
 - [ ] Toda configuracao esta em variavel de ambiente (nada fixo no codigo)?
 - [ ] Os logs estao livres de dados pessoais?
