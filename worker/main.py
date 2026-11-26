@@ -16,8 +16,10 @@ import redis
 
 try:
     from . import fila
+    from . import rastreamento
 except ImportError:
     import fila
+    import rastreamento
 
 
 URL_INFERENCIA = os.getenv(
@@ -42,19 +44,18 @@ log = logging.getLogger("worker")
 
 def executar_inferencia(texto):
     """Solicita a classificacao de sentimento."""
-    resposta = requests.post(
-        f"{URL_INFERENCIA}/predict",
-        json={"texto": texto},
-        timeout=TIMEOUT_S,
-        allow_redirects=False,
-    )
-    try:
-        resposta.raise_for_status()
-        if 300 <= resposta.status_code < 400:
-            raise requests.RequestException("redirecionamento de inferencia recusado")
-        return resposta.json()
-    finally:
-        resposta.close()
+    with rastreamento.span("worker", "inferencia.predict"):
+        resposta = requests.post(
+            f"{URL_INFERENCIA}/predict", json={"texto": texto}, timeout=TIMEOUT_S,
+            allow_redirects=False, headers={"traceparent": rastreamento.cabecalho()},
+        )
+        try:
+            resposta.raise_for_status()
+            if 300 <= resposta.status_code < 400:
+                raise requests.RequestException("redirecionamento de inferencia recusado")
+            return resposta.json()
+        finally:
+            resposta.close()
 
 
 def processar_tarefa(tarefa):
@@ -85,6 +86,12 @@ def processar_tarefa(tarefa):
 
 
 def tratar_tarefa(tarefa):
+    with rastreamento.span("worker", "fila.processar", pai=tarefa.get("traceparent", "")) as estado:
+        if not _tratar_tarefa(tarefa):
+            estado["resultado"] = "erro"
+
+
+def _tratar_tarefa(tarefa):
     """Registra sucesso ou encaminha falhas para descarte."""
     tarefa_id = tarefa["id"]
 
@@ -110,7 +117,7 @@ def tratar_tarefa(tarefa):
                 "erro": mensagem
             }
         )
-        return
+        return False
 
     fila.guardar_status(
         tarefa_id,
@@ -121,6 +128,7 @@ def tratar_tarefa(tarefa):
     )
 
     log.info("Tarefa %s concluida", tarefa_id)
+    return True
 
 
 def main():

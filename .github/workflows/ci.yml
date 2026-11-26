@@ -10,6 +10,7 @@ jobs:
 
     env:
       JWT_SEGREDO: ci-placeholder-not-secret
+      LOGIN_SENHA: ci-placeholder-not-secret
 
     steps:
       - name: Baixar codigo
@@ -70,3 +71,37 @@ jobs:
         if: steps.tem.outputs.testes == 'true'
         working-directory: ${{ matrix.servico }}
         run: python -m pytest -v -rxX
+
+  ponta-a-ponta:
+    runs-on: ubuntu-latest
+    env:
+      JWT_SEGREDO: ci-secret-only-for-isolated-tests
+      LOGIN_SENHA: ci-password-only-for-isolated-tests
+      E2E_URL: http://localhost:8000
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v7
+      - name: Instalar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Iniciar stack limpa
+        run: docker compose up --build -d
+      - name: Aguardar gateway
+        run: |
+          for tentativa in $(seq 1 60); do
+            if curl --fail --silent http://localhost:8000/saude; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Instalar dependencias e testar fluxo completo
+        run: |
+          pip install -r tests/e2e/requirements.txt
+          python -m pytest tests/e2e -v -rs
+          python tests/e2e/verificar_integracao.py
+      - name: Mostrar logs em caso de falha
+        if: failure()
+        run: docker compose logs --no-color --tail 150
+      - name: Encerrar stack
+        if: always()
+        run: docker compose down -v

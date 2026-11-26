@@ -8,16 +8,20 @@ TAREFA 2: limite de requisicoes por cliente (rate limit).
 Rodar: uvicorn app:app --port 8000
 """
 import hmac
+import json
 import os
 import threading
 import time
+import uuid
 from collections import defaultdict, deque
 
 import jwt
+import redis
 import requests
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+import rastreamento
 
 from resiliencia import (
     CircuitoAberto, ClienteInferencia, Configuracao, FalhaDependencia,
@@ -27,6 +31,7 @@ from resiliencia import (
 app = FastAPI(title="Gateway - C3.A2")
 
 URL_INFERENCIA = os.getenv("URL_INFERENCIA", "http://localhost:8001")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 cliente_inferencia = ClienteInferencia(Configuracao.do_ambiente())
 
 # --- Configuracao (tudo por variavel de ambiente; ver .env.example) ---------
@@ -60,7 +65,12 @@ class Credenciais(BaseModel):
 @app.middleware("http")
 async def registrar(request: Request, call_next):
     inicio = time.time()
-    resposta = await call_next(request)
+    with rastreamento.span("gateway", f"HTTP {request.method}",
+                           pai=request.headers.get("traceparent", "")) as estado:
+        resposta = await call_next(request)
+        if resposta.status_code >= 500:
+            estado["resultado"] = "erro"
+        resposta.headers["traceparent"] = rastreamento.cabecalho()
     ms = (time.time() - inicio) * 1000
     print(f"[gateway] {request.method} {request.url.path} "
           f"-> {resposta.status_code} ({ms:.1f}ms)")
@@ -159,7 +169,8 @@ def login(cred: Credenciais):
 @app.post("/predict")
 def predict(entrada: Entrada, usuario: str = Depends(limitar_por_usuario)):
     try:
-        return cliente_inferencia.prever(URL_INFERENCIA, entrada.model_dump())
+        with rastreamento.span("gateway", "inferencia.predict"):
+            return cliente_inferencia.prever(URL_INFERENCIA, entrada.model_dump())
     except RequisicaoRecusada as erro:
         raise HTTPException(status_code=erro.status_code,
                             detail="requisicao recusada pela inferencia") from None
@@ -170,3 +181,41 @@ def predict(entrada: Entrada, usuario: str = Depends(limitar_por_usuario)):
     except FalhaDependencia:
         raise HTTPException(status_code=503,
                             detail="servico de inferencia indisponivel") from None
+
+
+@app.post("/tarefas", status_code=202)
+def criar_tarefa(entrada: Entrada, usuario: str = Depends(limitar_por_usuario)):
+    if not entrada.texto.strip():
+        raise HTTPException(status_code=422, detail="texto nao pode ser vazio")
+    tarefa_id = str(uuid.uuid4())
+    try:
+        with rastreamento.span("gateway", "fila.publicar"):
+            tarefa = {"id": tarefa_id, "texto": entrada.texto,
+                      "traceparent": rastreamento.cabecalho()}
+            conexao = redis.from_url(REDIS_URL, decode_responses=True,
+                                     socket_connect_timeout=3, socket_timeout=3)
+            with conexao.pipeline(transaction=True) as pipeline:
+                pipeline.set("inferencia:status:" + tarefa_id,
+                             json.dumps({"status": "na_fila"}), ex=86400)
+                pipeline.set("inferencia:proprietario:" + tarefa_id, usuario, ex=86400)
+                pipeline.rpush("inferencia:tarefas", json.dumps(tarefa))
+                pipeline.execute()
+    except redis.RedisError:
+        raise HTTPException(status_code=503, detail="fila indisponivel") from None
+    return {"id": tarefa_id, "status": "na_fila"}
+
+
+@app.get("/tarefas/{tarefa_id}")
+def status_tarefa(tarefa_id: uuid.UUID, usuario: str = Depends(limitar_por_usuario)):
+    try:
+        conexao = redis.from_url(REDIS_URL, decode_responses=True,
+                                 socket_connect_timeout=3, socket_timeout=3)
+        dono = conexao.get("inferencia:proprietario:" + str(tarefa_id))
+        if dono != usuario:
+            raise HTTPException(status_code=404, detail="tarefa nao encontrada")
+        dados = conexao.get("inferencia:status:" + str(tarefa_id))
+    except redis.RedisError:
+        raise HTTPException(status_code=503, detail="fila indisponivel") from None
+    if dados is None:
+        raise HTTPException(status_code=404, detail="tarefa nao encontrada")
+    return json.loads(dados)

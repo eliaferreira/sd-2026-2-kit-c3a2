@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 
 import requests
+import rastreamento
 
 log = logging.getLogger("gateway.resiliencia")
 STATUS_TRANSITORIOS = {429, 500, 502, 503, 504}
@@ -146,6 +147,7 @@ class ClienteInferencia:
                 resposta = requests.post(
                     f"{url.rstrip('/')}/predict", json=entrada,
                     timeout=cfg.timeout_s, allow_redirects=False,
+                    headers={"traceparent": rastreamento.cabecalho()},
                 )
                 status = resposta.status_code
                 if 400 <= status < 500 and status != 429:

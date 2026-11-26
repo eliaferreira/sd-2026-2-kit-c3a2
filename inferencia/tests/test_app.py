@@ -65,6 +65,19 @@ def test_propaga_cabecalho_traceparent(client):
     assert resposta.headers.get("traceparent") == trace
 
 
+def test_trace_de_inferencia_vincula_span_ao_pai(client, capsys):
+    import json
+    trace = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+    resposta = client.post("/predict", json={"texto": "conteudo privado"},
+                           headers={"traceparent": trace})
+    assert resposta.status_code == 200
+    spans = [json.loads(linha) for linha in capsys.readouterr().out.splitlines()
+             if linha.startswith('{"tipo": "span"')]
+    assert spans[0]["trace_id"] == trace.split("-")[1]
+    assert spans[0]["parent_span_id"] == trace.split("-")[2]
+    assert "conteudo privado" not in json.dumps(spans)
+
+
 def test_erro_inesperado_retorna_json_padronizado_sem_stacktrace(client, monkeypatch):
     def falhar(_texto: str):
         raise RuntimeError("detalhe interno sensivel")
