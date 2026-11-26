@@ -1,132 +1,93 @@
-# Kit de Partida — C3.A2: Plataforma de IA como Serviço (projeto integrador)
+# Plataforma de IA como Serviço — C3.A2
 
-**Sistemas Distribuídos e Computação em Nuvem · FAESA · 2026/2**
-Prof. Howard Cruz Roatti · Lançado na Aula 13 (05/11) · Entrega na Aula 17 (26/11)
+Projeto integrador de Sistemas Distribuídos e Computação em Nuvem, FAESA. A plataforma classifica sentimentos por uma API protegida e também processa tarefas assíncronas.
 
----
+## Componentes
 
-## O que é isto
+- **Gateway** (`:8000`): login, JWT, rate limit, rota síncrona e publicação de tarefas.
+- **Inferência** (`:8001` na rede interna): classificação e operações vetoriais.
+- **Redis**: fila de tarefas, status por 24 horas e fila de descarte.
+- **Worker**: consome tarefas e chama a inferência.
+- **Qdrant**: armazena vetores e metadados dos documentos.
 
-O projeto que fecha o semestre. Você pega tudo o que construiu e transforma numa
-plataforma de verdade: **conteinerizada, publicada na internet, observável e protegida**.
-Ao final você terá um sistema distribuído completo e público — material de portfólio
-para entrevista de emprego.
+O gateway é a única porta publicada pelo Compose. JWT é validado no gateway; os demais serviços ficam na rede interna. A implantação existente e seus limites estão em [deploy/INSTRUCOES.md](deploy/INSTRUCOES.md).
 
-> **Sobre a IA neste trabalho:** todo contato com inteligência artificial aqui é
-> **chamada de biblioteca ou de API**. Você **não vai treinar modelos** nem precisar de
-> matemática de aprendizado de máquina. O modelo já vem pronto e configurado.
-> A sua nota vem da **engenharia distribuída**: arquitetura, comunicação, resiliência e
-> execução reproduzível — a sofisticação do modelo **não pontua**.
+## Começar do zero com Docker
 
----
+Pré-requisitos: Git, Docker Desktop com Docker Compose e internet para baixar imagens e dependências. No PowerShell:
 
-## Como começar
-
-```bash
-# 1. Clone o kit e entre na pasta
-git clone https://github.com/howardroatti/sd-2026-2-kit-c3a2.git
+```powershell
+git clone https://github.com/eliaferreira/sd-2026-2-kit-c3a2.git
 cd sd-2026-2-kit-c3a2
-
-# 2. Crie e ative o ambiente virtual
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
-source .venv/bin/activate
-
-# 3. Instale as dependências
-pip install -r requirements.txt
+Copy-Item .env.example .env
+notepad .env
 ```
 
-```bash
-# 4. Copie o arquivo de ambiente
-cp .env.example .env
+No `.env`, preencha `JWT_SEGREDO` com um valor longo e aleatório e `LOGIN_SENHA` com uma senha própria. Ajuste `LOGIN_USUARIO` se desejar. Salve o arquivo; ele não deve ser enviado ao Git. Depois:
 
-# 5. Suba a stack inteira com UM comando
-docker compose up --build
-
-# 6. Teste pelo gateway (nunca pelos serviços diretamente)
-curl http://localhost:8000/saude
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" -d '{"texto":"servico excelente"}'
-
-# 7. Publique na nuvem seguindo deploy/INSTRUCOES.md
+```powershell
+docker compose config --quiet
+docker compose up --build -d
+docker compose ps
+docker compose logs --tail 50 gateway inferencia worker
+Invoke-RestMethod http://localhost:8000/saude
 ```
 
-## Deploy em nuvem
+O build pode demorar na primeira execução. `/saude` verifica o gateway, sem garantir que as dependências estejam disponíveis. Para autenticar, substitua os valores pelas credenciais definidas no `.env`:
 
-O Gateway da Plataforma de IA está hospedado no Render.
-
-- **URL pública:** https://sd-2026-2-kit-c3a2.onrender.com
-- **Health Check:** https://sd-2026-2-kit-c3a2.onrender.com/saude
-- **Plataforma:** Render
-- **Containerização:** Docker
-- **HTTPS:** Habilitado
-- **Deploy automático:** Ativado na branch `main`
-
-**Status:** Gateway publicado e endpoint de saúde validado.
-
-
----
-
-## Estrutura do projeto
-
-```
-sd-2026-2-kit-c3a2/
-├── gateway/
-│   ├── app.py              # TAREFAS 1 e 2 (JWT e rate limit)
-│   └── Dockerfile          # PRONTO - use de modelo
-├── inferencia/             # traga o seu C1.A2 para cá
-├── worker/                 # traga o seu worker para cá
-├── deploy/INSTRUCOES.md    # passo a passo do free tier
-├── Dockerfile.exemplo      # modelo para os demais serviços
-├── docker-compose.yml      # TAREFA 4
-└── TAREFAS.md              # <- comece por aqui
+```powershell
+$cred = @{ usuario = "admin"; senha = "SUA_SENHA" } | ConvertTo-Json
+$token = (Invoke-RestMethod http://localhost:8000/login -Method Post -ContentType "application/json" -Body $cred).access_token
+$headers = @{ Authorization = "Bearer $token" }
+$body = @{ texto = "atendimento excelente" } | ConvertTo-Json
+Invoke-RestMethod http://localhost:8000/predict -Method Post -Headers $headers -ContentType "application/json" -Body $body
 ```
 
----
+Para verificar fila e worker pelo gateway:
 
-## O que você precisa fazer
+```powershell
+$tarefa = Invoke-RestMethod http://localhost:8000/tarefas -Method Post -Headers $headers -ContentType "application/json" -Body $body
+Invoke-RestMethod "http://localhost:8000/tarefas/$($tarefa.id)" -Headers $headers
+```
 
-Abra o arquivo **`TAREFAS.md`**: ele lista o núcleo obrigatório item a item, indicando
-o arquivo e a aula de referência de cada um.
+Consulte novamente até o status ser `concluido` ou `falhou`. O status fica disponível por 24 horas e só pode ser consultado pelo usuário que criou a tarefa. A fila de descarte preserva tarefas com falha para análise operacional.
 
----
+Para encerrar, execute `docker compose down`. Os volumes de Redis e Qdrant são preservados; removê-los também apaga os dados persistidos.
 
-## Como você será avaliado
+## Observabilidade
 
-| Critério | Pontos |
-|---|---|
-| Arquitetura e decomposição em serviços | 1,5 |
-| Comunicação funcionando (REST / gRPC / mensageria) | 1,5 |
-| Resiliência e tratamento de falhas | 1,0 |
-| Execução reproduzível (README, container, deploy) | 1,0 |
-| **Sofisticação do modelo de IA** | **não pontua** |
-| **Total** | **5,0** |
+Cada operação emite um span JSON nos logs com `trace_id`, `span_id`, `parent_span_id`, serviço, operação, resultado e duração. O gateway aceita um `traceparent` W3C versão `00` válido ou cria um novo trace; ele encaminha o contexto à inferência ou o inclui na mensagem da fila. O worker recupera esse contexto e o repassa à inferência. Assim, os spans podem ser correlacionados pelo mesmo `trace_id`:
 
-**Entrega:** no seu repositório do GitHub, **sem apresentação oral**. Grupos livres.
+```powershell
+docker compose logs --no-color gateway worker inferencia | Select-String '"tipo": "span"'
+```
 
----
+Os spans não incluem texto, token ou credenciais. Logs existentes dos serviços também devem ser considerados na política de privacidade. A implementação gera logs estruturados e propaga `traceparent`; ela não instala OpenTelemetry Collector, exportador OTLP ou painel de visualização. O estado do trace não altera o comportamento do endpoint. Cabeçalhos de versões desconhecidas ou inválidos iniciam outro trace.
 
-## Aulas de referência
+## Testes
 
-- **Aula 13** — Nuvem, containers e o primeiro deploy
-- **Aula 14** — Orquestração, serverless e borda
-- **Aula 15** — Observabilidade e rastreamento distribuído
-- **Aula 16** — Segurança, LGPD e revisão para o ENADE
+Execute as suítes de cada serviço em ambientes virtuais separados, pois as dependências possuem versões diferentes. A CI executa `python -m pytest -v -rxX` nas pastas `gateway`, `worker` e `inferencia` após instalar seus arquivos `requirements.txt` e `requirements-dev.txt`. O teste de integração do Qdrant é pulado se o serviço local não estiver disponível.
 
----
+Com a stack do Compose funcionando, teste de ponta a ponta usando Python 3.12:
 
-## Dúvidas frequentes
+```powershell
+python -m venv .venv-e2e
+.\.venv-e2e\Scripts\python.exe -m pip install -r tests/e2e/requirements.txt
+$env:E2E_URL = "http://localhost:8000"
+$env:E2E_TOKEN = $token
+.\.venv-e2e\Scripts\python.exe -m pytest tests/e2e -v -rs
+```
 
-**Preciso saber machine learning?** Não. O modelo já está pronto e você só chama uma função.
+O teste local de HTTPS é pulado; em uma URL pública, HTTPS é exigido. A execução cria uma tarefa de teste no Redis. Não rode contra produção sem considerar os dados e limites da implantação.
 
-**E se eu não tiver internet no laboratório?** Tudo neste kit funciona offline. O modelo é
-treinado localmente e o cliente de LLM tem modo simulado.
+## Implantação
 
-**Posso trocar a linguagem?** O kit é em Python porque é o ecossistema usado nas aulas.
-Se quiser usar outra linguagem, converse com o professor antes.
+O README anterior informa uma implantação do gateway em <https://sd-2026-2-kit-c3a2.onrender.com>. A disponibilidade e o funcionamento completo de inferência, Redis e worker no deploy precisam ser verificados separadamente; `GET /saude` não comprova o fluxo inteiro. Siga [deploy/INSTRUCOES.md](deploy/INSTRUCOES.md) e configure os segredos no provedor.
 
-**Posso usar IA para me ajudar a programar?** Sim. Este é um trabalho prático feito fora de
-sala, e usar ferramentas de IA é realista. O que se avalia é o **sistema funcionando** e as
-**decisões de arquitetura** — que você precisa saber explicar.
+## Dados e LGPD
+
+O gateway recebe textos para classificação. Tarefas assíncronas e seus resultados transitam pelo Redis; status expira em 24 horas, enquanto mensagens na fila e descarte permanecem conforme a operação do Redis. Documentos e metadados indexados no Qdrant permanecem até remoção ou gestão do volume. Não coloque dados pessoais em textos de teste. Restrinja acesso à infraestrutura e defina com o grupo finalidade, retenção e procedimentos de exclusão adequados à implantação. A API vetorial oferece remoção de documentos por ID.
+
+## Distribuição do trabalho
+
+Consulte [TAREFAS.md](TAREFAS.md) e os relatórios em `docs/`. A configuração das dependências e as credenciais são lidas do ambiente; não inclua `.env` ou segredos nos commits.

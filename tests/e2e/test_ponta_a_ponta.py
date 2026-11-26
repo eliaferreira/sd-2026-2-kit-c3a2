@@ -73,10 +73,29 @@ def test_predict_texto_invalido_retorna_422(auth):
     assert resposta.status_code == 422
 
 
-@pytest.mark.xfail(reason="depende da TAREFA 1 (JWT no gateway)", strict=False)
 def test_predict_sem_token_retorna_401():
     resposta = requests.post(f"{E2E_URL}/predict", json={"texto": "ok"}, timeout=TIMEOUT)
     assert resposta.status_code == 401
+
+
+def test_processamento_assincrono(auth):
+    if not auth:
+        pytest.fail("Defina E2E_TOKEN ou JWT_SEGREDO para testar o fluxo autenticado")
+    resposta = requests.post(f"{E2E_URL}/tarefas", json={"texto": "atendimento excelente"},
+                             headers=auth, timeout=TIMEOUT)
+    assert resposta.status_code == 202, resposta.text
+    tarefa_id = resposta.json()["id"]
+    limite = time.monotonic() + 60
+    while time.monotonic() < limite:
+        status = requests.get(f"{E2E_URL}/tarefas/{tarefa_id}", headers=auth, timeout=TIMEOUT)
+        assert status.status_code == 200, status.text
+        dados = status.json()
+        if dados["status"] == "concluido":
+            assert dados["resultado"]["sentimento"] in ("positivo", "negativo")
+            return
+        assert dados["status"] != "falhou", dados
+        time.sleep(1)
+    pytest.fail("Tarefa nao foi concluida em 60 segundos")
 
 
 def test_url_publica_usa_https():

@@ -10,6 +10,7 @@ jobs:
 
     env:
       JWT_SEGREDO: ci-placeholder-not-secret
+      LOGIN_SENHA: ci-placeholder-not-secret
 
     steps:
       - name: Baixar codigo
